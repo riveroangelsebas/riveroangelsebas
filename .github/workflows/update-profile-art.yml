@@ -1,0 +1,45 @@
+name: Update profile art
+
+# Re-scrapes real GitHub contributions (no auth/tokens beyond the default
+# GITHUB_TOKEN) and re-renders the contribution heatmap SVG daily, then
+# commits it back to the repo. Requires Settings -> Actions -> General ->
+# Workflow permissions -> "Read and write permissions" to be enabled once.
+
+on:
+  schedule:
+    - cron: "17 6 * * *"  # once a day
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r scripts/requirements.txt
+
+      - name: Fetch contributions
+        env:
+          GH_PROFILE_USER: ${{ github.repository_owner }}
+        run: python scripts/fetch_contributions.py
+
+      - name: Render heatmap
+        run: python scripts/render_heatmap_svg.py
+
+      - name: Commit and push if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/contributions.json contrib-heatmap.svg
+          git diff --cached --quiet || git commit -m "chore: refresh contribution graph"
+          git push
